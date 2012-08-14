@@ -86,6 +86,7 @@
 #define MIC_DEC_B			(1*32 + 6)	/* GPIO_2_6 */
 #define USER_UI1			(1*32 + 14)	/* GPIO_2_14 */
 #define USER_UI2			(1*32 + 15)	/* GPIO_2_15 */
+#define GPIO2_INPUT			(0*32 + 2)	/* GPIO_1_2 */
 #define MX53_nONKEY			(0*32 + 8)	/* GPIO_1_8 */
 
 #define SD3_CD				(2*32 + 11)	/* GPIO_3_11 */
@@ -254,14 +255,36 @@ static iomux_v3_cfg_t mx53_loco_pads[] = {
 	MX53_PAD_PATA_DATA15__GPIO2_15,
 	MX53_PAD_PATA_INTRQ__GPIO7_2,
 	MX53_PAD_EIM_WAIT__GPIO5_0,
-	MX53_PAD_NANDF_WP_B__GPIO6_9,
+	/*MX53_PAD_NANDF_WP_B__GPIO6_9,
 	MX53_PAD_NANDF_RB0__GPIO6_10,
 	MX53_PAD_NANDF_CS1__GPIO6_14,
 	MX53_PAD_NANDF_CS2__GPIO6_15,
-	MX53_PAD_NANDF_CS3__GPIO6_16,
+	MX53_PAD_NANDF_CS3__GPIO6_16,*/
 	MX53_PAD_GPIO_5__GPIO1_5,
 	MX53_PAD_GPIO_16__GPIO7_11,
 	MX53_PAD_GPIO_8__GPIO1_8,
+	MX53_PAD_GPIO_2__GPIO1_2,
+};
+
+static iomux_v3_cfg_t mx53_nand_pads[] = {
+	MX53_PAD_NANDF_CLE__EMI_NANDF_CLE,
+	MX53_PAD_NANDF_ALE__EMI_NANDF_ALE,
+	MX53_PAD_NANDF_WP_B__EMI_NANDF_WP_B,
+	MX53_PAD_NANDF_WE_B__EMI_NANDF_WE_B,
+	MX53_PAD_NANDF_RE_B__EMI_NANDF_RE_B,
+	MX53_PAD_NANDF_RB0__EMI_NANDF_RB_0,
+	MX53_PAD_NANDF_CS0__EMI_NANDF_CS_0,
+	MX53_PAD_NANDF_CS1__EMI_NANDF_CS_1	,
+	MX53_PAD_NANDF_CS2__EMI_NANDF_CS_2,
+	MX53_PAD_NANDF_CS3__EMI_NANDF_CS_3	,
+	MX53_PAD_EIM_DA0__EMI_NAND_WEIM_DA_0,
+	MX53_PAD_EIM_DA1__EMI_NAND_WEIM_DA_1,
+	MX53_PAD_EIM_DA2__EMI_NAND_WEIM_DA_2,
+	MX53_PAD_EIM_DA3__EMI_NAND_WEIM_DA_3,
+	MX53_PAD_EIM_DA4__EMI_NAND_WEIM_DA_4,
+	MX53_PAD_EIM_DA5__EMI_NAND_WEIM_DA_5,
+	MX53_PAD_EIM_DA6__EMI_NAND_WEIM_DA_6,
+	MX53_PAD_EIM_DA7__EMI_NAND_WEIM_DA_7,
 };
 
 static void loco_da9053_irq_wakeup_only_fixup(void)
@@ -324,6 +347,14 @@ static struct fb_videomode video_modes[] = {
 	FB_SYNC_HOR_HIGH_ACT|FB_SYNC_VERT_HIGH_ACT,
 	FB_VMODE_NONINTERLACED,
 	0,},
+	{
+	 "1080P60", 60, 1920, 1080, 7692,
+	 100, 40,
+	 30, 3,
+	 10, 2,
+	 0,
+	 FB_VMODE_NONINTERLACED,
+	 0,},
 };
 
 static struct platform_pwm_backlight_data mxc_pwm_backlight_data = {
@@ -598,6 +629,72 @@ static struct mxc_mmc_platform_data mmc3_data = {
 	.clock_mmc = "esdhc_clk",
 };
 
+/* NAND Flash Partitions */
+#ifdef CONFIG_MTD_PARTITIONS
+static struct mtd_partition nand_flash_partitions[] = {
+/* MX53 ROM require the boot FCB/DBBT support which need
+ * more space to store such info on NAND boot partition.
+ * 16M should cover all kind of NAND boot support on MX53.
+ */
+	{
+	 .name = "bootloader",
+	 .offset = 0,
+	 .size = 16 * 1024 * 1024},
+	{
+	 .name = "nand.kernel",
+	 .offset = MTDPART_OFS_APPEND,
+	 .size = 5 * 1024 * 1024},
+	{
+	 .name = "nand.rootfs",
+	 .offset = MTDPART_OFS_APPEND,
+	 .size = 256 * 1024 * 1024},
+	{
+	 .name = "nand.userfs1",
+	 .offset = MTDPART_OFS_APPEND,
+	 .size = 256 * 1024 * 1024},
+	{
+	 .name = "nand.userfs2",
+	 .offset = MTDPART_OFS_APPEND,
+	 .size = MTDPART_SIZ_FULL},
+};
+#endif
+
+static int nand_init(void)
+{
+	u32 i, reg;
+	void __iomem *base;
+
+	#define M4IF_GENP_WEIM_MM_MASK          0x00000001
+	#define WEIM_GCR2_MUX16_BYP_GRANT_MASK  0x00001000
+
+	base = ioremap(MX53_BASE_ADDR(M4IF_BASE_ADDR), SZ_4K);
+	reg = __raw_readl(base + 0xc);
+	reg &= ~M4IF_GENP_WEIM_MM_MASK;
+	__raw_writel(reg, base + 0xc);
+
+	iounmap(base);
+
+	base = ioremap(MX53_BASE_ADDR(WEIM_BASE_ADDR), SZ_4K);
+	for (i = 0x4; i < 0x94; i += 0x18) {
+		reg = __raw_readl((u32)base + i);
+		reg &= ~WEIM_GCR2_MUX16_BYP_GRANT_MASK;
+		__raw_writel(reg, (u32)base + i);
+	}
+
+	iounmap(base);
+
+	return 0;
+}
+
+static struct flash_platform_data mxc_nand_data = {
+#ifdef CONFIG_MTD_PARTITIONS
+	.parts = nand_flash_partitions,
+	.nr_parts = ARRAY_SIZE(nand_flash_partitions),
+#endif
+	.width = 1,
+	.init = nand_init,
+};
+
 static int headphone_det_status(void)
 {
 	return (gpio_get_value(HEADPHONE_DEC_B) == 0);
@@ -839,6 +936,9 @@ static void __init mx53_loco_io_init(void)
 {
 	mxc_iomux_v3_setup_multiple_pads(mx53_loco_pads,
 					ARRAY_SIZE(mx53_loco_pads));
+					
+	mxc_iomux_v3_setup_multiple_pads(mx53_nand_pads,
+					ARRAY_SIZE(mx53_nand_pads));				
 
 	/* SD3 */
 	gpio_request(SD3_CD, "sd3-cd");
@@ -864,7 +964,11 @@ static void __init mx53_loco_io_init(void)
 	/* LCD panel power enable */
 	gpio_request(DISP0_POWER_EN, "disp0-power-en");
 	gpio_direction_output(DISP0_POWER_EN, 1);
-
+	
+	/* GPIO2_INPUT */
+	gpio_request(GPIO2_INPUT, "gpio2-input");
+	gpio_direction_input(GPIO2_INPUT);
+	set_irq_type(gpio_to_irq(GPIO2_INPUT), IRQF_TRIGGER_LOW);
 }
 
 /*!
@@ -974,6 +1078,7 @@ static void __init mxc_board_init(void)
 	mx5_usb_dr_init();
 	mx5_set_host1_vbus_func(mx53_loco_usbh1_vbus);
 	mx5_usbh1_init();
+	mxc_register_device(&mxc_nandv2_mtd_device, &mxc_nand_data);
 	mxc_register_device(&mxc_v4l2_device, NULL);
 	mxc_register_device(&mxc_v4l2out_device, NULL);
 	loco_add_device_buttons();
