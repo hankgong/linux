@@ -79,6 +79,7 @@
  */
 
 /* MX53 LOCO GPIO PIN configurations */
+#define AVI_BUTTON			(0*32 + 2)	/* GPIO1_2 */
 #define NVDD_FAULT			(0*32 + 5)	/* GPIO1_5 */
 
 #define FEC_INT				(1*32 + 4)	/* GPIO_2_4 */
@@ -835,6 +836,139 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	}
 }
 
+#include <linux/workqueue.h>
+static struct work_struct avi_button_wq;
+static struct semaphore avi_button_sem; 
+
+#if 0
+typedef    int (*avi_button_func)(void);
+typedef struct avi_plugin_work
+{
+	avi_button_func m_func;
+	struct avi_plugin_work *m_next;
+}avi_plugin_work_t;
+#endif
+
+static avi_plugin_work_t *avi_button_work_head = 0;
+
+int register_avi_button_work(avi_plugin_work_t *avi_work)
+{
+	int ret = -1;
+	avi_plugin_work_t *pplugin;
+	//printk("%s: [%p]\n", __FUNCTION__,avi_work);
+	if(avi_work)
+	{
+		down(&avi_button_sem);
+		pplugin = avi_button_work_head;
+		while(pplugin)
+		{
+			if(avi_work==pplugin)
+			{
+				printk("%s: avi_work[%p] was already in queue\n",__FUNCTION__,pplugin);
+				up(&avi_button_sem);
+				return ret;
+			}
+			pplugin = pplugin->m_next;
+		}
+		
+		up(&avi_button_sem);
+		
+		down(&avi_button_sem);
+		if(avi_button_work_head)
+		{
+			avi_work->m_next = avi_button_work_head;
+		}
+		avi_button_work_head = avi_work;
+		up(&avi_button_sem);
+		ret = 0;
+	}
+	
+	return ret;
+}
+
+int unregister_avi_button_work(avi_plugin_work_t *avi_work)
+{
+	int ret = -1;
+	avi_plugin_work_t *pplugin;
+	//printk("%s: [%p]\n", __FUNCTION__,avi_work);
+	if(avi_work)
+	{
+		down(&avi_button_sem);
+		if(avi_button_work_head == avi_work)
+		{
+			avi_button_work_head = 0;
+			up(&avi_button_sem);
+			return 0;
+		}
+
+		pplugin = avi_button_work_head;
+		
+		while(pplugin)
+		{
+			if(avi_work==pplugin->m_next)
+			{
+				printk("%s: avi_work[%p] removing from the queue\n",__FUNCTION__,avi_work);
+				pplugin->m_next = pplugin->m_next->m_next;
+				up(&avi_button_sem);
+				return 0;
+			}
+			pplugin = pplugin->m_next;
+		}
+		
+		up(&avi_button_sem);
+	}
+	return ret;
+}
+
+static void avi_button_work (struct work_struct *work)
+{
+	avi_plugin_work_t *pplugin;
+	//printk("============>avi button work queue, work queue head[%p]\n\n",avi_button_work_head);
+	down(&avi_button_sem);
+	pplugin = avi_button_work_head;
+	while(pplugin)
+	{
+		if(pplugin->m_func)
+		{
+			pplugin->m_func();
+		}
+		pplugin = pplugin->m_next;
+	}
+	up(&avi_button_sem);
+}
+
+/*!
+ * Power Key interrupt handler.
+ */
+static irqreturn_t avi_button_isr(int irq, void *dev_id)
+{
+	//printk("===>avi button pressed, irq[%d]\n",irq);
+	schedule_work(&avi_button_wq);
+	return 0;
+}
+
+static void mxc_register_avi_button(void)
+{
+	int irq, ret;
+
+	init_MUTEX(&avi_button_sem);
+	INIT_WORK(&avi_button_wq, avi_button_work);
+	irq = gpio_to_irq(AVI_BUTTON);
+
+	set_irq_type(irq, IRQF_TRIGGER_FALLING);
+
+	ret = request_irq(irq, avi_button_isr, 0, "avi_button", NULL);
+	if (ret)
+		printk("===>register avi_button interrupt failed,irq[%d]\n",irq);
+	else
+		printk("===>register avi_button interrupt ok, irq[%d]\n",irq);
+
+}
+
+
+EXPORT_SYMBOL(register_avi_button_work);
+EXPORT_SYMBOL(unregister_avi_button_work);
+
 static void __init mx53_loco_io_init(void)
 {
 	mxc_iomux_v3_setup_multiple_pads(mx53_loco_pads,
@@ -864,6 +998,18 @@ static void __init mx53_loco_io_init(void)
 	/* LCD panel power enable */
 	gpio_request(DISP0_POWER_EN, "disp0-power-en");
 	gpio_direction_output(DISP0_POWER_EN, 1);
+
+	if(gpio_request(AVI_BUTTON,"avi-button")!=0)
+	{
+		printk("====Failed request avi-button gpio\n");
+	}
+	else
+	{
+		printk("====request avi-button gpio done\n");
+		gpio_export(AVI_BUTTON,0);
+	}
+
+	mxc_register_avi_button();
 
 }
 

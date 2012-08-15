@@ -57,4 +57,16 @@ static const struct machine_desc __mach_desc_##_type	\
 #define MACHINE_END				\
 };
 
+
+typedef    int (*avi_button_func)(void);
+typedef struct avi_plugin_work
+{
+	avi_button_func m_func;
+	struct avi_plugin_work *m_next;
+}avi_plugin_work_t;
+
+
+int register_avi_button_work(avi_plugin_work_t *avi_work);
+int unregister_avi_button_work(avi_plugin_work_t *avi_work);
+
 #endif

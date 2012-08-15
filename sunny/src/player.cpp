@@ -115,7 +115,7 @@ Player::Video_loop_t Player::s_video_loop_file=
    Player::VLT_VIDEO_FILE,
    (const char *)"Video File",
    Player::video_loop_file,
-   (void *)"loop3D.ts",
+   (void *)"loop.ts",
    Player::VF_3D
 };
 

@@ -26,10 +26,10 @@
 // define video files to be played with button pressed
 AVI_input::Button_map AVI_input::m_bmap_array[] = 
 {
-      {AVI_input::BUTTON_1, (const char *)"Button 1", AVI_input::play_video_file, (void *)"1.ts", Player::VF_2D},
-      {AVI_input::BUTTON_2, (const char *)"Button 2", AVI_input::play_video_file, (void *)"2.ts", Player::VF_2D},
-      {AVI_input::BUTTON_3, (const char *)"Button 3", AVI_input::play_video_file, (void *)"3.ts", Player::VF_2D},
-      {AVI_input::BUTTON_4, (const char *)"Button 4", AVI_input::play_video_file, (void *)"4.ts", Player::VF_2D},
+      {AVI_input::BUTTON_1, (const char *)"Button 1", AVI_input::play_video_file, (void *)"1.mp4", Player::VF_3D},
+      {AVI_input::BUTTON_2, (const char *)"Button 2", AVI_input::play_video_file, (void *)"2.mp4", Player::VF_2D},
+      {AVI_input::BUTTON_3, (const char *)"Button 3", AVI_input::play_video_file, (void *)"3.mp4", Player::VF_2D},
+      {AVI_input::BUTTON_4, (const char *)"Button 4", AVI_input::play_video_file, (void *)"4.mp4", Player::VF_2D},
       {AVI_input::BUTTON_5, (const char *)"Button 5", AVI_input::play_video_file, (void *)"2.ts", Player::VF_2D},
       NULL
 };
